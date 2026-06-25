@@ -1,28 +1,20 @@
 """
-Interfaz web AIPAY: evaluación visual de medios de pago y asistente GROQ.
+AIPAY — Interfaz única: asistente y agente de pagos en el ecosistema IA.
 
-El asistente responde sobre los productos financieros analizados (Bitcoin, CBDC,
-stablecoins y tokens de depósito), no sobre la configuración del proyecto.
+Una sola pantalla de chat. El agente ejecuta evaluaciones en vivo (APIs)
+y muestra resultados dinámicamente dentro de la conversación.
 """
 
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 
 import streamlit as st
 from dotenv import load_dotenv
 
-from main import (
-    CRITERIA_LABELS,
-    PAYMENT_METHODS,
-    build_evaluation_report,
-    format_report_text,
-    get_payment_method,
-    get_winners,
-    rank_payment_methods,
-)
+from agent import AgentResponse, process_message
+from main import CRITERIA_LABELS
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
@@ -30,190 +22,174 @@ load_dotenv(BASE_DIR / ".env")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 
-SYSTEM_PROMPT = """Eres un asesor financiero especializado en medios de pago digitales
-para la era de los agentes de IA. Tu conocimiento se basa en el análisis de
-Víctor Alvargonzález (elEconomista) sobre el futuro de los pagos.
 
-PRODUCTOS QUE DEBES EXPLICAR (no hables de cómo está programado este proyecto):
-
-1. Bitcoin — Cripto descentralizada, volátil, reserva digital de valor, no moneda global.
-2. CBDC — Moneda digital de banco central, máximo control estatal, adopción social difícil.
-3. Stablecoins — Criptos ancladas al dólar/euro/letras del tesoro; modelo híbrido ganador.
-4. Tokens de depósito — Tokens respaldados por depósitos bancarios/BC; ideales para agentes IA.
-
-CRITERIOS DE EVALUACIÓN: control político, estabilidad financiera, compatibilidad con IA.
-GANADORES DEL ANÁLISIS: Stablecoins y Tokens de depósito.
-
-Responde en español, de forma clara y concisa. Si no sabes algo, dilo.
-Usa los datos del informe adjunto como fuente de verdad numérica."""
+def init_session() -> None:
+    defaults = {
+        "messages": [],
+        "last_evaluation": None,
+        "last_snapshot": None,
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
 
-def query_groq(user_message: str, context: str) -> str:
-    """Envía una consulta al API de GROQ."""
-    if not GROQ_API_KEY:
-        return (
-            "⚠️ Configura tu clave GROQ_API_KEY en el archivo `.env` para activar "
-            "el asistente. Puedes obtener una en https://console.groq.com"
-        )
+def render_evaluation_panel(evaluation: dict) -> None:
+    """Panel dinámico de evaluación embebido en el chat."""
+    st.markdown("#### Evaluación en vivo")
 
-    try:
-        from groq import Groq
-    except ImportError:
-        return "⚠️ Instala dependencias: `pip install -r requirements.txt`"
+    market = evaluation.get("live_data", {}).get("market", {})
+    if market.get("ok"):
+        c1, c2, c3 = st.columns(3)
+        btc = market["bitcoin"]
+        stables = market["stablecoins"]
+        c1.metric("Bitcoin", f"${btc.get('price_usd', 0):,.0f}", f"{btc.get('change_24h_pct', 0):.1f}%")
+        c2.metric("Stablecoins", f"{stables.get('total_cap_b', 0)}B$", "cap. total")
+        c3.metric("Mercado cripto", f"{market.get('global_crypto_cap_b', 0)}B$", "global")
 
-    client = Groq(api_key=GROQ_API_KEY)
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {
-            "role": "user",
-            "content": (
-                f"Informe de evaluación actual:\n\n{context}\n\n"
-                f"Pregunta del usuario: {user_message}"
-            ),
-        },
-    ]
-
-    try:
-        response = client.chat.completions.create(
-            model=GROQ_MODEL,
-            messages=messages,
-            temperature=0.2,
-            max_tokens=1024,
-        )
-        return response.choices[0].message.content or "Sin respuesta del modelo."
-    except Exception as exc:
-        return f"❌ Error al consultar GROQ: {exc}"
-
-
-def render_score_bar(label: str, score: int) -> None:
-    st.progress(score / 10, text=f"{label}: {score}/10")
-
-
-def render_evaluation_tab() -> None:
-    st.subheader("Ranking de medios de pago")
-    report = build_evaluation_report()
-    winners = {winner["id"] for winner in report["winners"]}
-
-    for index, item in enumerate(report["ranking"], start=1):
-        badge = " 🏆" if item["id"] in winners else ""
-        with st.expander(f"{index}. {item['name']} — {item['total']} pts{badge}", expanded=index <= 2):
-            st.caption(item["role"])
-            st.write(item["justification"])
+    st.markdown("**Ranking actualizado**")
+    for i, item in enumerate(evaluation["ranking"], 1):
+        badge = " 🏆" if any(w["id"] == item["id"] for w in evaluation["winners"]) else ""
+        with st.expander(f"{i}. {item['name']} — {item['total']} pts{badge}"):
             for criterion, score in item["scores"].items():
-                render_score_bar(CRITERIA_LABELS[criterion], score)
+                st.progress(score / 10, text=f"{CRITERIA_LABELS[criterion]}: {score}/10")
+            st.caption(item["justification"])
 
-    st.divider()
-    st.subheader("Conclusión")
-    st.info(report["conclusion"])
-
-    st.subheader("Datos en JSON")
-    st.json(report)
+    sources = evaluation.get("sources", [])
+    if sources:
+        st.caption("Fuentes: " + " · ".join(sources))
 
 
-def render_products_tab() -> None:
-    st.subheader("Fichas de productos")
-    cols = st.columns(2)
-    for index, method in enumerate(PAYMENT_METHODS):
-        with cols[index % 2]:
-            st.markdown(f"### {method.name}")
-            st.caption(method.role)
-            st.write(method.description)
-            st.metric("Puntuación total", method.total_score())
-            for criterion, score in method.scores.items():
-                st.write(f"**{CRITERIA_LABELS[criterion]}:** {score}/10")
+def render_market_snapshot(snapshot: dict) -> None:
+    """Mini panel de mercado para respuestas de asistente."""
+    market = snapshot.get("market", {})
+    if not market.get("ok"):
+        return
+    btc = market["bitcoin"]
+    stables = market["stablecoins"]
+    c1, c2 = st.columns(2)
+    c1.caption(f"BTC ${btc.get('price_usd', 0):,.0f} ({btc.get('change_7d_pct', 0):.1f}% 7d)")
+    c2.caption(f"Stablecoins ~{stables.get('total_cap_b', 0)}B$")
 
 
-def render_assistant_tab() -> None:
-    st.subheader("Asistente GROQ sobre medios de pago")
-
-    if not GROQ_API_KEY:
-        st.warning(
-            "Introduce tu `GROQ_API_KEY` en `.env` (copia `.env.example` como plantilla). "
-            "El asistente explica Bitcoin, CBDC, stablecoins y tokens de depósito."
-        )
-    else:
-        st.success(f"Conectado a GROQ — modelo `{GROQ_MODEL}`")
-
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
-
-    context = format_report_text()
-
-    for message in st.session_state.chat_history:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
-    suggestions = [
-        "¿Por qué Bitcoin no será la moneda global del futuro?",
-        "¿Qué son las stablecoins y por qué son candidatas ganadoras?",
-        "Compara CBDC y tokens de depósito para agentes de IA",
-        "¿Qué empresas o sectores podrían beneficiarse de las stablecoins?",
+def handle_message(prompt: str) -> None:
+    history = [
+        {"role": m["role"], "content": m["content"]}
+        for m in st.session_state.messages
+        if m["role"] in ("user", "assistant")
     ]
 
-    st.caption("Preguntas sugeridas:")
-    suggestion_cols = st.columns(2)
-    for index, suggestion in enumerate(suggestions):
-        if suggestion_cols[index % 2].button(suggestion, key=f"suggest_{index}"):
-            st.session_state.pending_question = suggestion
+    with st.spinner("Consultando ecosistema y APIs..."):
+        response: AgentResponse = process_message(
+            prompt, history, GROQ_API_KEY, GROQ_MODEL
+        )
 
-    prompt = st.chat_input("Pregunta sobre los medios de pago analizados...")
-    if "pending_question" in st.session_state:
-        prompt = st.session_state.pop("pending_question")
+    st.session_state.messages.append({
+        "role": "user",
+        "content": prompt,
+    })
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": response.text,
+        "mode": response.mode,
+        "evaluation": response.evaluation,
+        "snapshot": response.snapshot,
+        "product_ids": response.product_ids,
+    })
 
-    if prompt:
-        st.session_state.chat_history.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+    if response.evaluation:
+        st.session_state.last_evaluation = response.evaluation
+    if response.snapshot:
+        st.session_state.last_snapshot = response.snapshot
 
-        with st.chat_message("assistant"):
-            with st.spinner("Consultando GROQ..."):
-                answer = query_groq(prompt, context)
-            st.markdown(answer)
 
-        st.session_state.chat_history.append({"role": "assistant", "content": answer})
+def render_chat() -> None:
+    for i, msg in enumerate(st.session_state.messages):
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-    if st.session_state.chat_history and st.button("Limpiar conversación"):
-        st.session_state.chat_history = []
+            if msg["role"] == "assistant":
+                mode = msg.get("mode", "assistant")
+                if mode == "agent":
+                    st.caption("Modo agente · evaluación en vivo")
+                if msg.get("evaluation"):
+                    render_evaluation_panel(msg["evaluation"])
+                elif msg.get("snapshot"):
+                    render_market_snapshot(msg["snapshot"])
+
+    actions = st.columns([1, 1, 1, 2])
+    if actions[0].button("Evaluar ecosistema", use_container_width=True):
+        handle_message("Evalúa el ecosistema actual de pagos para agentes de IA con datos en vivo")
         st.rerun()
+
+    if actions[1].button("Mercado stablecoins", use_container_width=True):
+        handle_message("¿Cuál es la situación actual de las stablecoins en el mercado?")
+        st.rerun()
+
+    if actions[2].button("Estado CBDC", use_container_width=True):
+        handle_message("¿Qué está pasando ahora con las CBDC en el mundo?")
+        st.rerun()
+
+    prompt = st.chat_input("Pregunta sobre pagos en el ecosistema de agentes IA...")
+    if prompt:
+        handle_message(prompt)
+        st.rerun()
+
+
+def render_sidebar() -> None:
+    with st.sidebar:
+        st.header("AIPAY")
+        st.caption("Asistente → Agente")
+        st.markdown(
+            "**Fase actual:** Asistente con evaluación agente\n\n"
+            "Pide *«evalúa el ecosistema»* para activar el modo agente."
+        )
+
+        if st.session_state.last_evaluation:
+            st.divider()
+            st.markdown("**Última evaluación**")
+            for i, item in enumerate(st.session_state.last_evaluation["ranking"][:3], 1):
+                st.write(f"{i}. {item['name']} — {item['total']} pts")
+
+        st.divider()
+        st.caption("APIs: CoinGecko · CBDC Tracker")
+        st.caption("Marco: elEconomista (V. Alvargonzález)")
 
 
 def main() -> None:
     st.set_page_config(
-        page_title="AIPAY — Pagos para la era de la IA",
+        page_title="AIPAY — Pagos en el ecosistema IA",
         page_icon="💳",
         layout="wide",
     )
+    init_session()
+    render_sidebar()
 
-    st.title("💳 AIPAY")
+    st.title("AIPAY")
     st.markdown(
-        "Análisis de **medios de pago digitales** para circuitos de agentes de IA, "
-        "basado en el artículo de Víctor Alvargonzález (*elEconomista*)."
+        "Asistente y **agente** de la economía de pagos en el ecosistema de **agentes de IA**. "
+        "Consulta datos en vivo, analiza y evalúa — todo en una sola conversación."
     )
 
-    winners = get_winners()
-    winner_names = ", ".join(winner.name for winner in winners)
-    st.success(f"Ganadores del análisis: **{winner_names}**")
+    if not GROQ_API_KEY:
+        st.warning("Añade `GROQ_API_KEY` en `.env` para respuestas con IA. Sin clave, hay informes locales.")
+    else:
+        st.caption(f"GROQ `{GROQ_MODEL}` · datos CoinGecko en tiempo real")
 
-    tab_eval, tab_products, tab_assistant = st.tabs(
-        ["📊 Evaluación", "📦 Productos", "🤖 Asistente GROQ"]
-    )
+    if not st.session_state.messages:
+        st.info(
+            "Prueba: *«¿Cómo pagan hoy los agentes de IA?»*, "
+            "*«Evalúa el ecosistema con datos en vivo»* o usa los botones de acción rápida."
+        )
 
-    with tab_eval:
-        render_evaluation_tab()
-    with tab_products:
-        render_products_tab()
-    with tab_assistant:
-        render_assistant_tab()
+    render_chat()
 
-    with st.sidebar:
-        st.header("Resumen rápido")
-        ranking = rank_payment_methods()
-        for index, method in enumerate(ranking, start=1):
-            st.write(f"{index}. {method.name} — {method.total_score()} pts")
-
-        st.divider()
-        st.caption("Ejecutar por consola: `python main.py`")
-        st.caption("Tests: `python -m unittest test_main.py`")
+    if st.session_state.messages:
+        if st.button("Nueva conversación"):
+            st.session_state.messages = []
+            st.session_state.last_evaluation = None
+            st.session_state.last_snapshot = None
+            st.rerun()
 
 
 if __name__ == "__main__":
