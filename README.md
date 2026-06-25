@@ -81,7 +81,7 @@ Los tres botones y la barra de chat envían un texto a `handle_message()` → `a
 Usuario (botón o chat)
     → handle_message()
     → fetch_ecosystem_snapshot() [CoinGecko + CBDC + señales IA]
-    → ¿Palabras clave de evaluación?
+    → ¿Petición explícita de evaluación/ranking?
         Sí  → MODO AGENTE (ranking + informe completo)
         No  → MODO ASISTENTE (respuesta focalizada)
     → GROQ redacta la respuesta
@@ -95,7 +95,7 @@ Usuario (botón o chat)
 > «Evalúa el ecosistema actual de pagos para agentes de IA con datos en vivo»
 
 **Por qué activa el modo AGENTE:**  
-Contiene palabras como *«evalúa»* y *«ecosistema»*, que coinciden con los disparadores en `agent.py`.
+Contiene *«evalúa»*, que coincide con los disparadores de evaluación en `agent.py`.
 
 **Qué hace paso a paso:**
 
@@ -160,7 +160,7 @@ Contiene palabras como *«evalúa»* y *«ecosistema»*, que coinciden con los d
 
 | Si tu pregunta contiene… | Modo | Resultado |
 |--------------------------|------|-----------|
-| evalúa, analiza, ecosistema, datos en vivo, agente… | Agente | Evaluación completa + panel |
+| evalúa, evaluar, evaluación, ranking, puntúa, informe completo, análisis completo o analiza + ecosistema | Agente | Evaluación completa + panel |
 | Cualquier otra cosa | Asistente | Respuesta focalizada |
 
 **Ejemplos:**
@@ -169,7 +169,7 @@ Contiene palabras como *«evalúa»* y *«ecosistema»*, que coinciden con los d
 - *«Compara Bitcoin y stablecoins»* → Asistente: contexto comparativo, sin ranking formal
 - *«Evalúa el ecosistema»* → Agente: informe completo
 
-El asistente recuerda las últimas 6–8 mensajes, así puedes hacer seguimiento (*«¿y la CBDC?»*).
+El asistente conserva contexto reciente, así puedes hacer seguimiento (*«¿y la CBDC?»*).
 
 ### Resumen
 
