@@ -64,9 +64,120 @@ streamlit run app.py
 ## Tests
 
 ```bash
-python -m unittest discover -v
+python3 -m unittest discover -v
 ```
 
 ## Referencia
 
 Marco analítico: artículo de Víctor Alvargonzález sobre pagos digitales y agentes de IA (*elEconomista*). El proyecto evalúa de forma **independiente** con datos de mercado actuales.
+
+## Lógica de la interfaz
+
+Los tres botones y la barra de chat envían un texto a `handle_message()` → `agent.process_message()`. La diferencia está en **qué texto envían** y **qué modo activa** el agente.
+
+### Flujo general
+
+```text
+Usuario (botón o chat)
+    → handle_message()
+    → fetch_ecosystem_snapshot() [CoinGecko + CBDC + señales IA]
+    → ¿Palabras clave de evaluación?
+        Sí  → MODO AGENTE (ranking + informe completo)
+        No  → MODO ASISTENTE (respuesta focalizada)
+    → GROQ redacta la respuesta
+    → Pantalla: texto + panel (evaluación o mini mercado)
+```
+
+### 1. Botón «Evaluar ecosistema»
+
+**Texto que envía:**
+
+> «Evalúa el ecosistema actual de pagos para agentes de IA con datos en vivo»
+
+**Por qué activa el modo AGENTE:**  
+Contiene palabras como *«evalúa»* y *«ecosistema»*, que coinciden con los disparadores en `agent.py`.
+
+**Qué hace paso a paso:**
+
+1. **Consulta APIs** (`data_sources.py`):
+   - CoinGecko → precio Bitcoin, capitalización USDT/USDC/DAI, mercado global
+   - Datos CBDC → países en piloto, lanzamientos retail, etc.
+   - Señales IA → OpenAI API, Stripe Agent, x402, etc.
+
+2. **Evalúa** (`evaluator.py`):
+   - Parte de 4 medios de pago: Bitcoin, CBDC, Stablecoins, Tokens de depósito
+   - Puntúa 3 criterios (0–10): control político, estabilidad, compatibilidad IA
+   - Ajusta puntuaciones con datos en vivo, por ejemplo:
+     - BTC muy volátil → baja estabilidad
+     - Stablecoins con mucha capitalización → sube compatibilidad IA
+
+3. **Genera ranking** y marca ganadores (stablecoins + tokens de depósito)
+
+4. **GROQ** redacta un informe legible para inversor/analista
+
+5. **En pantalla** ves:
+   - Texto del informe (GROQ)
+   - Panel con métricas BTC/stablecoins/mercado
+   - Ranking con barras de puntuación por criterio
+
+### 2. Botón «Mercado stablecoins»
+
+**Texto que envía:**
+
+> «¿Cuál es la situación actual de las stablecoins en el mercado?»
+
+**Modo:** ASISTENTE (no dispara evaluación completa)
+
+**Qué hace:**
+
+1. Consulta el snapshot (CoinGecko + CBDC + señales IA)
+2. `assistant_engine.py` detecta que preguntas por **stablecoins**
+3. Construye contexto solo relevante: datos USDT/USDC, cap. total, marco del artículo sobre stablecoins
+4. GROQ responde solo a esa pregunta, sin repetir todo el informe
+5. En pantalla: respuesta en texto + mini panel (precio BTC y cap. stablecoins si CoinGecko responde)
+
+### 3. Botón «Estado CBDC»
+
+**Texto que envía:**
+
+> «¿Qué está pasando ahora con las CBDC en el mundo?»
+
+**Modo:** ASISTENTE
+
+**Qué hace:**
+
+1. Snapshot en vivo (mercado cripto + datos CBDC)
+2. El motor detecta **CBDC** en la pregunta
+3. Contexto centrado en: países en desarrollo, pilotos activos, retail lanzado (e-CNY, Bahamas…), Europa en piloto
+4. GROQ explica el estado actual de las monedas digitales de banco central
+5. Sin ranking completo; respuesta conversacional
+
+### 4. Barra de chat (pregunta libre)
+
+**Texto:** lo que tú escribas.
+
+**Lógica de decisión:**
+
+| Si tu pregunta contiene… | Modo | Resultado |
+|--------------------------|------|-----------|
+| evalúa, analiza, ecosistema, datos en vivo, agente… | Agente | Evaluación completa + panel |
+| Cualquier otra cosa | Asistente | Respuesta focalizada |
+
+**Ejemplos:**
+
+- *«¿Cómo pagan hoy los agentes de IA?»* → Asistente: habla de créditos API, stablecoins, tokens
+- *«Compara Bitcoin y stablecoins»* → Asistente: contexto comparativo, sin ranking formal
+- *«Evalúa el ecosistema»* → Agente: informe completo
+
+El asistente recuerda las últimas 6–8 mensajes, así puedes hacer seguimiento (*«¿y la CBDC?»*).
+
+### Resumen
+
+| Control | Rol |
+|---------|-----|
+| Evaluar ecosistema | Modo agente: APIs + scoring + ranking + informe completo |
+| Mercado stablecoins | Atajo de chat sobre stablecoins con datos CoinGecko |
+| Estado CBDC | Atajo de chat sobre CBDC mundial |
+| Barra de chat | Pregunta libre; el sistema elige asistente o agente según las palabras |
+
+Todo pasa por **GROQ** para la respuesta en lenguaje natural, pero los **datos numéricos** vienen de CoinGecko y del evaluador Python; el modelo no los inventa.

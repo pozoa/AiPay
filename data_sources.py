@@ -8,6 +8,7 @@ Datos CBDC: referencia curada basada en seguimiento BIS / Atlantic Council.
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -23,6 +24,9 @@ COINGECKO_URL = (
 )
 
 COINGECKO_GLOBAL_URL = "https://api.coingecko.com/api/v3/global"
+DEFAULT_MARKET_TTL_SECONDS = 300
+_MARKET_CACHE: dict[str, Any] | None = None
+_MARKET_CACHE_MONOTONIC: float = 0.0
 
 # Referencia curada (actualizable) — pilotos CBDC en marcha / lanzados
 CBDC_ECOSYSTEM = {
@@ -44,10 +48,38 @@ AI_PAYMENT_SIGNALS = {
     ],
     "tendencia": (
         "Los agentes de IA operan con unidades de cuenta digitales (créditos API, "
-        "stablecoins, tokens de depósito). El volumen de stablecoins supera los "
-        "300.000 M$ y crece como capa de liquidación para software autónomo."
+        "stablecoins, tokens de depósito). Las stablecoins crecen como capa de "
+        "liquidación para software autónomo."
     ),
 }
+
+
+def safe_float(value: Any, default: float = 0.0) -> float:
+    """Convierte a float; None o valores inválidos devuelven default."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def fmt_price_usd(value: Any) -> str:
+    if value is None:
+        return "N/A"
+    try:
+        return f"${float(value):,.0f}"
+    except (TypeError, ValueError):
+        return "N/A"
+
+
+def fmt_pct(value: Any) -> str:
+    if value is None:
+        return "N/A"
+    try:
+        return f"{float(value):.1f}%"
+    except (TypeError, ValueError):
+        return "N/A"
 
 
 def _http_get_json(url: str, timeout: int = 15) -> dict[str, Any]:
@@ -59,8 +91,23 @@ def _http_get_json(url: str, timeout: int = 15) -> dict[str, Any]:
         return json.loads(response.read().decode("utf-8"))
 
 
-def fetch_crypto_market() -> dict[str, Any]:
+def fetch_crypto_market(
+    use_cache: bool = True,
+    ttl_seconds: int = DEFAULT_MARKET_TTL_SECONDS,
+) -> dict[str, Any]:
     """Obtiene precios y capitalización desde CoinGecko."""
+    global _MARKET_CACHE, _MARKET_CACHE_MONOTONIC
+
+    now = time.monotonic()
+    if (
+        use_cache
+        and _MARKET_CACHE is not None
+        and now - _MARKET_CACHE_MONOTONIC < ttl_seconds
+    ):
+        cached = dict(_MARKET_CACHE)
+        cached["cache"] = "hit"
+        return cached
+
     try:
         prices = _http_get_json(COINGECKO_URL)
         global_data = _http_get_json(COINGECKO_GLOBAL_URL)
@@ -74,9 +121,10 @@ def fetch_crypto_market() -> dict[str, Any]:
         if coin in prices
     )
 
-    return {
+    market = {
         "ok": True,
         "source": "CoinGecko",
+        "cache": "miss",
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "bitcoin": {
             "price_usd": prices.get("bitcoin", {}).get("usd"),
@@ -95,11 +143,14 @@ def fetch_crypto_market() -> dict[str, Any]:
             1,
         ),
     }
+    _MARKET_CACHE = dict(market)
+    _MARKET_CACHE_MONOTONIC = now
+    return market
 
 
-def fetch_ecosystem_snapshot() -> dict[str, Any]:
+def fetch_ecosystem_snapshot(use_cache: bool = True) -> dict[str, Any]:
     """Snapshot completo del ecosistema: mercado + CBDC + señales IA."""
-    market = fetch_crypto_market()
+    market = fetch_crypto_market(use_cache=use_cache)
     return {
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "market": market,
@@ -118,12 +169,13 @@ def format_snapshot_text(snapshot: dict[str, Any]) -> str:
         stables = market["stablecoins"]
         lines.extend([
             "### Mercado cripto (CoinGecko)",
-            f"- Bitcoin: ${btc.get('price_usd', 'N/A'):,.0f} | "
-            f"24h: {btc.get('change_24h_pct', 0):.1f}% | "
-            f"7d: {btc.get('change_7d_pct', 0):.1f}%",
-            f"- Stablecoins total: ~{stables.get('total_cap_b', 0)}B$ "
-            f"(USDT {stables.get('usdt_cap_b')}B, USDC {stables.get('usdc_cap_b')}B)",
-            f"- Mercado cripto global: ~{market.get('global_crypto_cap_b', 0)}B$",
+            f"- Bitcoin: {fmt_price_usd(btc.get('price_usd'))} | "
+            f"24h: {fmt_pct(btc.get('change_24h_pct'))} | "
+            f"7d: {fmt_pct(btc.get('change_7d_pct'))}",
+            f"- Stablecoins total: ~{safe_float(stables.get('total_cap_b')):.1f}B$ "
+            f"(USDT {safe_float(stables.get('usdt_cap_b')):.1f}B, "
+            f"USDC {safe_float(stables.get('usdc_cap_b')):.1f}B)",
+            f"- Mercado cripto global: ~{safe_float(market.get('global_crypto_cap_b')):.1f}B$",
         ])
     else:
         lines.append(f"### Mercado: no disponible ({market.get('error', 'error')})")
@@ -138,9 +190,17 @@ def format_snapshot_text(snapshot: dict[str, Any]) -> str:
     ])
 
     ai = snapshot["ai_payments"]
+    stablecoin_trend = ai["tendencia"]
+    if market.get("ok"):
+        stablecoin_trend = (
+            "Los agentes de IA operan con unidades de cuenta digitales "
+            "(créditos API, stablecoins, tokens de depósito). El volumen "
+            f"medido de stablecoins ronda {safe_float(stables.get('total_cap_b')):.1f}B$ "
+            "y funciona como capa de liquidación para software autónomo."
+        )
     lines.extend([
         "### Pagos en ecosistema IA",
-        f"- {ai['tendencia']}",
+        f"- {stablecoin_trend}",
         "- Señales: " + "; ".join(ai["agentes_comerciales"][:4]),
     ])
 

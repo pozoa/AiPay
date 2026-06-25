@@ -14,6 +14,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from agent import AgentResponse, process_message
+from data_sources import fmt_pct, fmt_price_usd, safe_float
 from main import CRITERIA_LABELS
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -43,9 +44,21 @@ def render_evaluation_panel(evaluation: dict) -> None:
         c1, c2, c3 = st.columns(3)
         btc = market["bitcoin"]
         stables = market["stablecoins"]
-        c1.metric("Bitcoin", f"${btc.get('price_usd', 0):,.0f}", f"{btc.get('change_24h_pct', 0):.1f}%")
-        c2.metric("Stablecoins", f"{stables.get('total_cap_b', 0)}B$", "cap. total")
-        c3.metric("Mercado cripto", f"{market.get('global_crypto_cap_b', 0)}B$", "global")
+        c1.metric(
+            "Bitcoin",
+            fmt_price_usd(btc.get("price_usd")),
+            fmt_pct(btc.get("change_24h_pct")),
+        )
+        c2.metric(
+            "Stablecoins",
+            f"{safe_float(stables.get('total_cap_b')):.1f}B$",
+            "cap. total",
+        )
+        c3.metric(
+            "Mercado cripto",
+            f"{safe_float(market.get('global_crypto_cap_b')):.1f}B$",
+            "global",
+        )
 
     st.markdown("**Ranking actualizado**")
     for i, item in enumerate(evaluation["ranking"], 1):
@@ -68,8 +81,8 @@ def render_market_snapshot(snapshot: dict) -> None:
     btc = market["bitcoin"]
     stables = market["stablecoins"]
     c1, c2 = st.columns(2)
-    c1.caption(f"BTC ${btc.get('price_usd', 0):,.0f} ({btc.get('change_7d_pct', 0):.1f}% 7d)")
-    c2.caption(f"Stablecoins ~{stables.get('total_cap_b', 0)}B$")
+    c1.caption(f"BTC {fmt_price_usd(btc.get('price_usd'))} ({fmt_pct(btc.get('change_7d_pct'))} 7d)")
+    c2.caption(f"Stablecoins ~{safe_float(stables.get('total_cap_b')):.1f}B$")
 
 
 def handle_message(prompt: str) -> None:
