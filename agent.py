@@ -7,28 +7,22 @@ Fase 2 — Agente: ejecuta evaluación completa (APIs + scoring) y sintetiza con
 
 from __future__ import annotations
 
-import os
 import re
 from dataclasses import dataclass, field
 from typing import Any
 
 from assistant_engine import (
     build_dynamic_context,
-    detect_intents,
-    detect_product_ids,
     local_fallback_answer,
     products_for_display,
 )
 from data_sources import fetch_ecosystem_snapshot, format_snapshot_text
 from evaluator import run_ecosystem_evaluation
 
-AGENT_TRIGGERS = re.compile(
-    r"\b("
-    r"eval[uú]a|evaluar|anali[sz]a|analizar|ecosistema|"
-    r"datos en vivo|mercado actual|agente|informe completo|"
-    r"actualiza.*ranking|qué pasa ahora|situación actual"
-    r")\b",
-    re.I,
+AGENT_TRIGGER_PATTERNS = (
+    re.compile(r"\b(eval[uú]a|evaluar|evaluaci[oó]n|ranking|rankea|punt[uú]a|scoring)\b", re.I),
+    re.compile(r"\b(informe completo|an[aá]lisis completo|actualiza.*ranking)\b", re.I),
+    re.compile(r"\b(anali[sz]a|analizar).*\becosistema\b|\becosistema\b.*\b(anali[sz]a|analizar)\b", re.I),
 )
 
 SYSTEM_ASSISTANT = """Eres AiPay, asistente especializado en la economía de pagos
@@ -73,7 +67,7 @@ class AgentResponse:
 
 
 def _should_run_full_evaluation(message: str) -> bool:
-    return bool(AGENT_TRIGGERS.search(message))
+    return any(pattern.search(message) for pattern in AGENT_TRIGGER_PATTERNS)
 
 
 def _call_groq(
