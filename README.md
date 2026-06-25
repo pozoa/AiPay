@@ -1,4 +1,4 @@
-# AIPAY — Asistente y agente de pagos en el ecosistema IA
+# AiPay — Asistente y agente de pagos en el ecosistema IA
 
 Proyecto independiente inspirado en el artículo de **Víctor Alvargonzález** (*elEconomista*), pero orientado a **cómo se está realizando hoy la economía de pagos entre agentes de IA**: evalúa con datos en vivo, responde con GROQ y ejecuta evaluaciones completas en una **única interfaz de chat**.
 
@@ -20,7 +20,7 @@ Proyecto independiente inspirado en el artículo de **Víctor Alvargonzález** (
 ## Estructura
 
 ```text
-AIPAY/
+AiPay/
 ├── app.py              # Interfaz única (Streamlit)
 ├── agent.py            # Orquestador asistente → agente
 ├── evaluator.py        # Evaluación dinámica con datos en vivo
@@ -35,7 +35,7 @@ AIPAY/
 ## Instalación
 
 ```bash
-cd /home/delpo/Escritorio/AIPAY
+cd /home/delpo/Escritorio/AiPay
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt

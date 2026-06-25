@@ -53,7 +53,7 @@ AI_PAYMENT_SIGNALS = {
 def _http_get_json(url: str, timeout: int = 15) -> dict[str, Any]:
     request = urllib.request.Request(
         url,
-        headers={"Accept": "application/json", "User-Agent": "AIPAY/1.0"},
+        headers={"Accept": "application/json", "User-Agent": "AiPay/1.0"},
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))

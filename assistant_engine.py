@@ -112,7 +112,7 @@ def build_dynamic_context(user_message: str, history: list[dict[str, str]]) -> s
                     break
 
     sections: list[str] = [
-        "Marco analítico AIPAY (referencia: elEconomista — Víctor Alvargonzález). "
+        "Marco analítico AiPay (referencia: elEconomista — Víctor Alvargonzález). "
         "El proyecto evalúa de forma independiente con datos en vivo."
     ]
 

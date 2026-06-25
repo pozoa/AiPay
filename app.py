@@ -1,5 +1,5 @@
 """
-AIPAY — Interfaz única: asistente y agente de pagos en el ecosistema IA.
+AiPay — Interfaz única: asistente y agente de pagos en el ecosistema IA.
 
 Una sola pantalla de chat. El agente ejecuta evaluaciones en vivo (APIs)
 y muestra resultados dinámicamente dentro de la conversación.
@@ -138,7 +138,7 @@ def render_chat() -> None:
 
 def render_sidebar() -> None:
     with st.sidebar:
-        st.header("AIPAY")
+        st.header("AiPay")
         st.caption("Asistente → Agente")
         st.markdown(
             "**Fase actual:** Asistente con evaluación agente\n\n"
@@ -158,14 +158,14 @@ def render_sidebar() -> None:
 
 def main() -> None:
     st.set_page_config(
-        page_title="AIPAY — Pagos en el ecosistema IA",
+        page_title="AiPay — Pagos en el ecosistema IA",
         page_icon="💳",
         layout="wide",
     )
     init_session()
     render_sidebar()
 
-    st.title("AIPAY")
+    st.title("AiPay")
     st.markdown(
         "Asistente y **agente** de la economía de pagos en el ecosistema de **agentes de IA**. "
         "Consulta datos en vivo, analiza y evalúa — todo en una sola conversación."

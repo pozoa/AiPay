@@ -1,5 +1,5 @@
 """
-Agente AIPAY: orquesta asistente conversacional y evaluación del ecosistema.
+Agente AiPay: orquesta asistente conversacional y evaluación del ecosistema.
 
 Fase 1 — Asistente: responde con contexto dinámico + datos en vivo.
 Fase 2 — Agente: ejecuta evaluación completa (APIs + scoring) y sintetiza con GROQ.
@@ -31,7 +31,7 @@ AGENT_TRIGGERS = re.compile(
     re.I,
 )
 
-SYSTEM_ASSISTANT = """Eres AIPAY, asistente especializado en la economía de pagos
+SYSTEM_ASSISTANT = """Eres AiPay, asistente especializado en la economía de pagos
 del ecosistema de agentes de IA (2025-2026).
 
 MISIÓN: analizar cómo se están pagando hoy las transacciones entre agentes de IA,
@@ -47,7 +47,7 @@ REGLAS:
 4. El artículo de elEconomista es marco de referencia, no la única fuente.
 5. Español, tono de analista. Máx. 250 palabras salvo que pidan informe."""
 
-SYSTEM_AGENT = """Eres AIPAY en modo AGENTE. Acabas de ejecutar una evaluación en vivo
+SYSTEM_AGENT = """Eres AiPay en modo AGENTE. Acabas de ejecutar una evaluación en vivo
 del ecosistema de pagos para agentes de IA.
 
 Tu tarea: presentar el informe de forma clara y accionable para un inversor o analista.
