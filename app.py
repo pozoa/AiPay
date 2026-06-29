@@ -8,6 +8,7 @@ y muestra resultados dinámicamente dentro de la conversación.
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 
 import streamlit as st
@@ -22,6 +23,33 @@ load_dotenv(BASE_DIR / ".env")
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+
+
+def get_branch_name() -> str:
+    try:
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+    except Exception:
+        return ""
+
+
+def get_app_name() -> str:
+    branch = get_branch_name()
+    if branch == "dev-cursor":
+        return "AiPay Cursor"
+    if branch == "main":
+        return "AiPay Pozoa"
+    if branch in {"dev-codex", "dev-code"}:
+        return "AiPay Codex"
+    if branch == "dev-kiro":
+        return "AiPay Kiro"
+    return "AiPay"
 
 
 def init_session() -> None:
@@ -150,8 +178,9 @@ def render_chat() -> None:
 
 
 def render_sidebar() -> None:
+    app_name = get_app_name()
     with st.sidebar:
-        st.header("AiPay")
+        st.header(app_name)
         st.caption("Asistente → Agente")
         st.markdown(
             "**Fase actual:** Asistente con evaluación agente\n\n"
@@ -170,15 +199,19 @@ def render_sidebar() -> None:
 
 
 def main() -> None:
+    app_name = get_app_name()
     st.set_page_config(
-        page_title="AiPay — Pagos en el ecosistema IA",
+        page_title=f"{app_name} — Pagos en el ecosistema IA",
         page_icon="💳",
         layout="wide",
     )
     init_session()
     render_sidebar()
 
-    st.title("AiPay")
+    st.title(app_name)
+    branch = get_branch_name()
+    if branch:
+        st.caption(f"🌿 rama: `{branch}`")
     st.markdown(
         "Asistente y **agente** de la economía de pagos en el ecosistema de **agentes de IA**. "
         "Consulta datos en vivo, analiza y evalúa — todo en una sola conversación."
