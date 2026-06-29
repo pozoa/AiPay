@@ -35,7 +35,7 @@ AiPay/
 ## Instalación
 
 ```bash
-cd /home/delpo/Escritorio/AiPay
+cd /"dir"
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -70,6 +70,13 @@ python3 -m unittest discover -v
 ## Referencia
 
 Marco analítico: artículo de Víctor Alvargonzález sobre pagos digitales y agentes de IA (*elEconomista*). El proyecto evalúa de forma **independiente** con datos de mercado actuales.
+
+## Contributors
+
+| Rol | Nombre |
+|-----|--------|
+| Autor | [@delpo](https://github.com/delpo) |
+| AI Developer | Kiro (Amazon Kiro) |
 
 ## Lógica de la interfaz
 
