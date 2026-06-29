@@ -35,7 +35,7 @@ AiPay/
 ## Instalación
 
 ```bash
-cd /home/delpo/Escritorio/AiPay
+cd /"dir"
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
