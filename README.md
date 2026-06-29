@@ -71,6 +71,13 @@ python3 -m unittest discover -v
 
 Marco analítico: artículo de Víctor Alvargonzález sobre pagos digitales y agentes de IA (*elEconomista*). El proyecto evalúa de forma **independiente** con datos de mercado actuales.
 
+## Contributors
+
+| Rol | Nombre |
+|-----|--------|
+| Autor | [@delpo](https://github.com/delpo) |
+| AI Developer | Kiro (Amazon Kiro) |
+
 ## Lógica de la interfaz
 
 Los tres botones y la barra de chat envían un texto a `handle_message()` → `agent.process_message()`. La diferencia está en **qué texto envían** y **qué modo activa** el agente.
