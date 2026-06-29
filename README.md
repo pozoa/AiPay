@@ -75,7 +75,7 @@ Marco analítico: artículo de Víctor Alvargonzález sobre pagos digitales y ag
 
 | Rol | Nombre |
 |-----|--------|
-| Autor | [@delpo](https://github.com/delpo) |
+| Autor | [@pozoa](https://github.com/pozoa) |
 | AI Developer | Kiro (Amazon Kiro) |
 
 ## Lógica de la interfaz
